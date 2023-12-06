@@ -1,0 +1,693 @@
+#include <iostream>
+#include <cstdlib>
+#include <cstring>
+#include <limits>
+
+using namespace std;
+struct pasajeros
+{
+    char nombre[40];
+    int documento = 0;
+    int sobreventa;
+    int tipoCupo;
+    bool esMenorEdad;  // Nuevo atributo
+    pasajeros* siguiente;
+};
+
+struct Nodo
+{
+    long long fechaYVuelo;
+    char origen[45];
+    char destino[45];
+    pasajeros* colaPasajeros;
+    pasajeros* colaSobreventa;
+    Nodo* izquierda;
+    Nodo* derecha;
+    Nodo* siguiente;
+    int capacidad_pasajeros;
+    int contarpasajero = 0;
+    int contarsobreventa = 0;
+};
+
+
+void mostrarEnOrdenConNumeros(Nodo* nodo, int& numeroVuelo);
+Nodo* encontrarVueloPorNumero(Nodo* nodo, int& numeroVuelo);
+void cancelarVueloPorPasajero();
+
+//pasajeros* raiz, * cab, * aux, * aux2;
+Nodo* raiz, * cab, * aux, * aux2;
+
+// Función para posicionar en el árbol por fecha y hora de vuelo
+void posicionar(Nodo*& nodo, long long fechaYVuelo, const char orig[45], const char dest[45], int limite)
+{
+    if (nodo == NULL)
+    {
+        nodo = (Nodo*)malloc(sizeof(Nodo));
+        nodo->fechaYVuelo = fechaYVuelo;
+        strcpy_s(nodo->origen, sizeof(nodo->origen), orig);
+        strcpy_s(nodo->destino, sizeof(nodo->destino), dest);
+        nodo->capacidad_pasajeros = limite;
+        nodo->colaPasajeros = NULL;  // Inicializa la cola de pasajeros
+        nodo->colaSobreventa = NULL;  // Inicializa la cola de sobreventa
+        nodo->izquierda = nodo->derecha = NULL;
+    }
+    else if (fechaYVuelo < nodo->fechaYVuelo)
+    {
+        posicionar(nodo->izquierda, fechaYVuelo, orig, dest, limite);
+    }
+    else if (fechaYVuelo > nodo->fechaYVuelo)
+    {
+        posicionar(nodo->derecha, fechaYVuelo, orig, dest, limite);
+    }
+    // Ignoramos el caso de igualdad, ya que no permitimos vuelos en la misma fecha y hora
+}
+
+// Función para combinar año, mes, día, hora y minuto en el formato YYYYMMDDHHMM
+long long combinarFechaHora(int ano, int mes, int dia, int hora, int minuto)
+{
+    return static_cast<long long>(ano) * 100000000 + static_cast<long long>(mes) * 1000000 +
+        static_cast<long long>(dia) * 10000 + static_cast<long long>(hora) * 100 + minuto;
+}
+
+// Función para registrar vuelo en el árbol
+void registrarVuelo(const char orig[45], const char destin[45], int ano, int mes, int dia, int hora, int minuto, int limit)
+{
+    long long fechaYVuelo = combinarFechaHora(ano, mes, dia, hora, minuto);
+    posicionar(raiz, fechaYVuelo, orig, destin, limit);
+}
+
+// Función para mostrar el árbol en orden por fecha y hora de vuelo
+void mostrarEnOrden(Nodo* nodo)
+{
+
+    if (nodo != NULL)
+    {
+
+        mostrarEnOrden(nodo->izquierda);
+        cout << endl;
+        cout << "Vuelo destino: " << nodo->destino << endl;
+        cout << "Fecha y Hora del vuelo: " << nodo->fechaYVuelo << endl;
+        cout << "Lugar de origen: " << nodo->origen << endl;
+        cout << "Capacidad de pasajeros: " << nodo->capacidad_pasajeros << endl << endl;
+
+
+
+        // Mostrar otros detalles del vuelo si es necesario
+        mostrarEnOrden(nodo->derecha);
+
+
+    }
+
+}
+void cancelarVuelo()
+{
+    long long fechaYVuelo;
+    cout << "Ingrese la fecha y hora del vuelo para cancelar: ";
+    cin >> fechaYVuelo;
+
+    if (raiz == NULL)
+    {
+        cout << "El árbol está vacío. No hay vuelos para cancelar." << endl;
+        return;
+    }
+
+    Nodo* temp = raiz;
+    Nodo* padre = NULL;
+
+    while (temp != NULL && temp->fechaYVuelo != fechaYVuelo)
+    {
+        padre = temp;
+
+        if (fechaYVuelo < temp->fechaYVuelo)
+        {
+            temp = temp->izquierda;
+        }
+        else
+        {
+            temp = temp->derecha;
+        }
+    }
+
+    if (temp == NULL)
+    {
+        cout << "No se encontró el vuelo con la fecha y hora especificadas." << endl;
+        return;
+    }
+
+    // Nodo encontrado, eliminar
+    if (temp->izquierda == NULL)
+    {
+        if (temp->derecha == NULL)
+        {
+            // Nodo sin hijos
+            if (padre == NULL)
+            {
+                raiz = NULL;
+            }
+            else if (temp == padre->izquierda)
+            {
+                padre->izquierda = NULL;
+            }
+            else
+            {
+                padre->derecha = NULL;
+            }
+        }
+        else
+        {
+            // Nodo con un hijo a la derecha
+            if (padre == NULL)
+            {
+                raiz = temp->derecha;
+            }
+            else if (temp == padre->izquierda)
+            {
+                padre->izquierda = temp->derecha;
+            }
+            else
+            {
+                padre->derecha = temp->derecha;
+            }
+        }
+    }
+    else
+    {
+        if (temp->derecha == NULL)
+        {
+            // Nodo con un hijo a la izquierda
+            if (padre == NULL)
+            {
+                raiz = temp->izquierda;
+            }
+            else if (temp == padre->izquierda)
+            {
+                padre->izquierda = temp->izquierda;
+            }
+            else
+            {
+                padre->derecha = temp->izquierda;
+            }
+        }
+        else
+        {
+            // Nodo con dos hijos, encontrar sucesor inorden
+            Nodo* sucesor = temp->derecha;
+            Nodo* padreSucesor = temp;
+
+            while (sucesor->izquierda != NULL)
+            {
+                padreSucesor = sucesor;
+                sucesor = sucesor->izquierda;
+            }
+
+            // Reemplazar el valor del nodo por el sucesor
+            temp->fechaYVuelo = sucesor->fechaYVuelo;
+            strcpy_s(temp->origen, sizeof(temp->origen), sucesor->origen);
+            strcpy_s(temp->destino, sizeof(temp->destino), sucesor->destino);
+            temp->capacidad_pasajeros = sucesor->capacidad_pasajeros;
+            // Eliminar el sucesor
+            if (sucesor == padreSucesor->izquierda)
+            {
+                padreSucesor->izquierda = sucesor->derecha;
+            }
+            else
+            {
+                padreSucesor->derecha = sucesor->derecha;
+            }
+
+            temp = sucesor;
+        }
+    }
+
+    free(temp);
+    cout << "Vuelo cancelado." << endl;
+}
+
+void mostrarEnOrdenConNumeros(Nodo* nodo, int& numeroVuelo)
+{
+    if (nodo != NULL)
+    {
+        mostrarEnOrdenConNumeros(nodo->izquierda, numeroVuelo);
+
+        // Mostrar la información del vuelo actual con su número
+        cout << numeroVuelo << ". " << "Fecha y Hora del vuelo: " << nodo->fechaYVuelo
+            << ", Origen: " << nodo->origen << ", Destino: " << nodo->destino << endl;
+
+        numeroVuelo++;
+
+        mostrarEnOrdenConNumeros(nodo->derecha, numeroVuelo);
+    }
+}
+Nodo* encontrarVueloPorNumero(Nodo* nodo, int& numeroVuelo, int& contador)
+{
+    if (nodo != NULL)
+    {
+        Nodo* izquierda = encontrarVueloPorNumero(nodo->izquierda, numeroVuelo, contador);
+
+        if (izquierda != NULL)
+            return izquierda;
+
+        // Mostrar la información del vuelo actual
+        cout << contador << ". " << "Fecha y Hora del vuelo: " << nodo->fechaYVuelo
+            << ", Origen: " << nodo->origen << ", Destino: " << nodo->destino << endl;
+
+        if (contador == numeroVuelo)
+            return nodo;
+
+        contador++;
+
+        Nodo* derecha = encontrarVueloPorNumero(nodo->derecha, numeroVuelo, contador);
+        if (derecha != NULL)
+            return derecha;
+    }
+
+    return NULL;
+}
+
+Nodo* encontrarVueloPorNumero(Nodo* nodo, int& numeroVuelo)
+{
+    int contador = 1;
+    return encontrarVueloPorNumero(nodo, numeroVuelo, contador);
+}
+
+
+
+
+void encolarPasajero(pasajeros*& cola, pasajeros*& nuevoPasajero)
+{
+    if (cola == NULL)
+    {
+        cola = nuevoPasajero;
+    }
+    else
+    {
+        pasajeros* temp = cola;
+        while (temp->siguiente != NULL)
+        {
+            temp = temp->siguiente;
+        }
+        temp->siguiente = nuevoPasajero;
+    }
+}
+void registrarPasajeroNormal(Nodo* vueloSeleccionado)
+{
+    if (vueloSeleccionado->contarpasajero < vueloSeleccionado->capacidad_pasajeros) {
+        pasajeros* nuevoPasajero = (pasajeros*)malloc(sizeof(pasajeros));
+
+        cout << "Ingrese el nombre del pasajero: ";
+        cin >> nuevoPasajero->nombre;
+
+        cout << "Ingrese el documento del pasajero: ";
+        cin >> nuevoPasajero->documento;
+
+        cout << "¿Es menor de edad? (1 para Sí, 0 para No): ";
+        cin >> nuevoPasajero->esMenorEdad;
+
+        nuevoPasajero->sobreventa = 0;
+        nuevoPasajero->tipoCupo = 0;
+        vueloSeleccionado->contarpasajero++;
+
+        if (vueloSeleccionado->colaPasajeros == NULL) {
+            vueloSeleccionado->colaPasajeros = nuevoPasajero;
+        }
+        else {
+            encolarPasajero(vueloSeleccionado->colaPasajeros, nuevoPasajero);
+        }
+
+        cout << "Pasajero registrado en el vuelo exitosamente." << endl;
+    }
+    else {
+        cout << "Este vuelo ya está lleno de pasajeros." << endl;
+    }
+}
+
+void registrarPasajeroSobreventa(Nodo* vueloSeleccionado)
+{
+    if (vueloSeleccionado->contarsobreventa < vueloSeleccionado->capacidad_pasajeros * 0.2) {
+        pasajeros* nuevoPasajero = (pasajeros*)malloc(sizeof(pasajeros));
+
+        cout << "Ingrese el nombre del pasajero: ";
+        cin >> nuevoPasajero->nombre;
+
+        cout << "Ingrese el documento del pasajero: ";
+        cin >> nuevoPasajero->documento;
+
+        cout << "¿Es menor de edad? (1 para Sí, 0 para No): ";
+        cin >> nuevoPasajero->esMenorEdad;
+
+        nuevoPasajero->sobreventa = 1;
+        nuevoPasajero->tipoCupo = 1;
+        vueloSeleccionado->contarsobreventa++;
+
+        if (vueloSeleccionado->colaSobreventa == NULL) {
+            vueloSeleccionado->colaSobreventa = nuevoPasajero;
+        }
+        else {
+            encolarPasajero(vueloSeleccionado->colaSobreventa, nuevoPasajero);
+        }
+
+        cout << "Pasajero registrado en el vuelo exitosamente." << endl;
+    }
+    else {
+        cout << "Este vuelo ya está lleno de pasajeros por sobreventa." << endl;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+// Función para registrar un vuelo
+void registrarVuelo()
+{
+    int ano, mes, dia, hora, minuto, limite;
+    char origen[45];
+    char destino[45];
+
+    cout << "Ingrese lugar de origen: " << endl;
+    cin >> origen;
+    cout << "Ingrese lugar de destino: " << endl;
+    cin >> destino;
+
+    cout << "Ingrese el limite maximo de pasajeros para este vuelo: " << endl;
+    cin >> limite;
+
+    cout << "Ingrese el ano del vuelo: ";
+    while (!(cin >> ano))
+    {
+        cout << "Formato no válido. Ingrese el ano del vuelo: ";
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    }
+
+    cout << "Ingrese el mes del vuelo: ";
+    while (!(cin >> mes) || mes < 1 || mes > 12)
+    {
+        cout << "Formato no válido. Ingrese el mes del vuelo: ";
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    }
+
+    cout << "Ingrese el dia del vuelo: ";
+    while (!(cin >> dia) || dia < 1 || dia > 31)
+    {
+        cout << "Formato no válido. Ingrese el dia del vuelo: ";
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    }
+
+    cout << "Ingrese la hora del vuelo (0-23): ";
+    while (!(cin >> hora) || hora < 0 || hora > 23)
+    {
+        cout << "Formato no válido. Ingrese la hora del vuelo (0-23): ";
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    }
+
+    cout << "Ingrese los minutos del vuelo (0-59): ";
+    while (!(cin >> minuto) || minuto < 0 || minuto > 59)
+    {
+        cout << "Formato no válido. Ingrese los minutos del vuelo (0-59): ";
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    }
+
+    registrarVuelo(origen, destino, ano, mes, dia, hora, minuto, limite);
+    cout << "Vuelo registrado exitosamente." << endl;
+}
+void cancelarVueloPorPasajero()
+{
+    long long fechaYVuelo;
+    cout << "Ingrese la fecha y hora del vuelo que desea cancelar: ";
+    cin >> fechaYVuelo;
+
+    if (raiz == NULL)
+    {
+        cout << "El árbol está vacío. No hay vuelos para cancelar." << endl;
+        return;
+    }
+
+    Nodo* temp = raiz;
+    Nodo* padre = NULL;
+
+    while (temp != NULL && temp->fechaYVuelo != fechaYVuelo)
+    {
+        padre = temp;
+
+        if (fechaYVuelo < temp->fechaYVuelo)
+        {
+            temp = temp->izquierda;
+        }
+        else
+        {
+            temp = temp->derecha;
+        }
+    }
+
+    if (temp == NULL)
+    {
+        cout << "No se encontró el vuelo con la fecha y hora especificadas." << endl;
+        return;
+    }
+
+    // Verificar si hay pasajeros registrados en el vuelo
+    if (temp->colaPasajeros != NULL || temp->colaSobreventa != NULL)
+    {
+        cout << "Ingrese el documento del pasajero que desea cancelar: ";
+        int documentoPasajero;
+        cin >> documentoPasajero;
+
+        // Buscar al pasajero en la lista de pasajeros normales
+        pasajeros* pasajeroActual = temp->colaPasajeros;
+        pasajeros* padrePasajero = NULL;
+        bool encontradoEnSobreventa = false;
+
+        while (pasajeroActual != NULL && pasajeroActual->documento != documentoPasajero)
+        {
+            padrePasajero = pasajeroActual;
+            pasajeroActual = pasajeroActual->siguiente;
+        }
+
+        // Si no se encuentra en la lista de pasajeros normales, buscar en la lista de sobreventa
+        if (pasajeroActual == NULL)
+        {
+            pasajeroActual = temp->colaSobreventa;
+            padrePasajero = NULL;
+            encontradoEnSobreventa = true;
+
+            while (pasajeroActual != NULL && pasajeroActual->documento != documentoPasajero)
+            {
+                padrePasajero = pasajeroActual;
+                pasajeroActual = pasajeroActual->siguiente;
+            }
+
+            if (pasajeroActual == NULL)
+            {
+                cout << "No se encontró al pasajero con el documento especificado en este vuelo." << endl;
+                return;
+            }
+        }
+
+        // Eliminar al pasajero de la lista
+        if (padrePasajero == NULL)
+        {
+            // El pasajero a eliminar es el primero en la lista
+            if (encontradoEnSobreventa) {
+                temp->colaSobreventa = pasajeroActual->siguiente;
+                // Reasignar el cupo de sobreventa a normal
+                temp->contarpasajero++;
+                temp->contarsobreventa--;
+            }
+            else {
+                temp->colaPasajeros = pasajeroActual->siguiente;
+            }
+        }
+        else
+        {
+            // El pasajero a eliminar no es el primero en la lista
+            padrePasajero->siguiente = pasajeroActual->siguiente;
+
+            // Reasignar el cupo de sobreventa a normal
+            if (encontradoEnSobreventa) {
+                temp->contarpasajero++;
+                temp->contarsobreventa--;
+            }
+        }
+
+        delete pasajeroActual;  // Liberar la memoria del pasajero eliminado
+
+        cout << "Pasajero cancelado del vuelo exitosamente." << endl;
+    }
+    else
+    {
+        cout << "No hay pasajeros registrados en este vuelo." << endl;
+    }
+}Nodo* seleccionarVuelo()
+{
+    int numeroVuelo = 1;
+
+    // Mostrar la lista de vuelos solo si aún no se ha seleccionado uno
+    Nodo* vueloSeleccionado = NULL;
+    if (raiz != NULL)
+    {
+        cout << "Vuelos disponibles: " << endl;
+        mostrarEnOrdenConNumeros(raiz, numeroVuelo);
+
+        int opcion;
+        cout << "Seleccione el numero del vuelo al que desea registrar pasajero: ";
+        cin >> opcion;
+
+        vueloSeleccionado = encontrarVueloPorNumero(raiz, opcion);
+
+        if (vueloSeleccionado == NULL)
+        {
+            cout << "Número de vuelo no válido. Intente de nuevo." << endl;
+        }
+    }
+    else
+    {
+        cout << "No hay vuelos disponibles." << endl;
+    }
+
+    return vueloSeleccionado;
+}
+
+
+void mostrarVueloYPasajeros(Nodo* vueloSeleccionado) {
+    if (vueloSeleccionado == NULL) {
+        cout << "Vuelo no válido." << endl;
+        return;
+    }
+
+    cout << "Detalles del vuelo:" << endl;
+    cout << "Fecha y Hora del vuelo: " << vueloSeleccionado->fechaYVuelo << endl;
+    cout << "Origen: " << vueloSeleccionado->origen << endl;
+    cout << "Destino: " << vueloSeleccionado->destino << endl;
+    cout << "Capacidad de pasajeros: " << vueloSeleccionado->capacidad_pasajeros << endl;
+
+    cout << "\nLista de Pasajeros Menores de Edad:" << endl;
+    pasajeros* pasajeroActual = vueloSeleccionado->colaPasajeros;
+    while (pasajeroActual != NULL) {
+        if (pasajeroActual->esMenorEdad) {
+            cout << "Nombre: " << pasajeroActual->nombre << ", Documento: " << pasajeroActual->documento << endl;
+        }
+        pasajeroActual = pasajeroActual->siguiente;
+    }
+
+    cout << "\nLista de Pasajeros por Sobreventa:" << endl;
+    pasajeros* pasajeroSobreventa = vueloSeleccionado->colaSobreventa;
+    while (pasajeroSobreventa != NULL) {
+        cout << "Nombre: " << pasajeroSobreventa->nombre << ", Documento: " << pasajeroSobreventa->documento << endl;
+        pasajeroSobreventa = pasajeroSobreventa->siguiente;
+    }
+}
+
+void liberarPasajeros(pasajeros*& cola) {
+    while (cola != NULL) {
+        pasajeros* temp = cola;
+        cola = cola->siguiente;
+        free(temp);
+    }
+}
+
+int main()
+{
+    raiz = NULL;
+
+    int opc = 0;
+
+    do
+    {
+        cout << endl;
+        cout << "<< PROGRAMA DE GESTION DE VUELOS >>" << endl;
+        cout << "1. Registrar vuelo" << endl;
+        cout << "2. Mostrar vuelos" << endl;
+        cout << "3. Registrar Pasajero Normal " << endl;
+        cout << "4. Registrar Pasajero Por sobreventa " << endl;
+        cout << "5. Cancelar vuelo" << endl;
+        cout << "6. Cancelar vuelo por pasajero" << endl;
+        cout << "7. Mostrar un vuelo y sus pasajeros" << endl;
+        cout << "8. Salir" << endl;
+        cout << "Ingrese opcion: ";
+        cin >> opc;
+
+        switch (opc)
+        {
+        case 1:
+            registrarVuelo();
+            break;
+
+        case 2:
+            cout << "Vuelos en orden por fecha y hora: " << endl;
+            mostrarEnOrden(raiz);
+            break;
+
+        case 3:
+        {
+            Nodo* vueloSeleccionado = seleccionarVuelo();
+            if (vueloSeleccionado != NULL)
+            {
+                registrarPasajeroNormal(vueloSeleccionado);
+            }
+            // No necesitas el else aquí
+        }
+        break;
+
+
+
+        case 4:
+        {
+            Nodo* vueloSeleccionado = seleccionarVuelo();
+            if (vueloSeleccionado != NULL)
+            {
+                registrarPasajeroSobreventa(vueloSeleccionado);
+            }
+            else
+            {
+                cout << "Vuelo no valido. Intente de nuevo." << endl;
+            }
+        }
+        break;
+
+
+
+        case 5:
+            cancelarVuelo();
+            break;
+
+        case 6:
+            cancelarVueloPorPasajero();
+            break;
+
+        case 7:
+        {
+            Nodo* vueloSeleccionado = seleccionarVuelo();
+            mostrarVueloYPasajeros(vueloSeleccionado);
+        }
+        break;
+
+        case 8:
+            cout << "Hasta pronto" << endl;
+            break;
+
+        default:
+            cout << "Opcion no valida. Intente de nuevo." << endl;
+            break;
+        }
+
+    } while (opc != 7);
+
+    if (raiz != NULL) {
+        liberarPasajeros(raiz->colaPasajeros);
+        liberarPasajeros(raiz->colaSobreventa);
+        free(raiz);
+    }
+
+
+    return 0;
+}
